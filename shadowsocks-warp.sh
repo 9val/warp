@@ -25,7 +25,8 @@ FontColor_Suffix="\033[0m"
 log() {
     local LEVEL="$1"
     local MSG="$2"
-    local TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+    local TIMESTAMP
+    TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
     case "${LEVEL}" in
     INFO)
         local LEVEL="[${FontColor_Green}${LEVEL}${FontColor_Suffix}]"
@@ -127,7 +128,7 @@ Get_System_Info() {
         SysInfo_OS_Ver_major="$(rpm -E '%{rhel}')"
         ;;
     *)
-        SysInfo_OS_Ver_major="$(echo ${VERSION_ID} | cut -d. -f1)"
+        SysInfo_OS_Ver_major="$(echo "${VERSION_ID}" | cut -d. -f1)"
         ;;
     esac
     
@@ -437,8 +438,8 @@ Configure_Firewalld_Rules() {
     log INFO "Configuring firewalld rules..."
     
     # Open Shadowsocks port
-    firewall-cmd --permanent --add-port=${SHADOWSOCKS_PORT}/tcp
-    firewall-cmd --permanent --add-port=${SHADOWSOCKS_PORT}/udp
+    firewall-cmd --permanent --add-port="${SHADOWSOCKS_PORT}"/tcp
+    firewall-cmd --permanent --add-port="${SHADOWSOCKS_PORT}"/udp
     
     # Allow WireGuard traffic
     firewall-cmd --permanent --add-port=2408/udp
@@ -456,8 +457,8 @@ Configure_UFW_Rules() {
     log INFO "Configuring ufw rules..."
     
     # Open Shadowsocks port
-    ufw allow ${SHADOWSOCKS_PORT}/tcp
-    ufw allow ${SHADOWSOCKS_PORT}/udp
+    ufw allow "${SHADOWSOCKS_PORT}"/tcp
+    ufw allow "${SHADOWSOCKS_PORT}"/udp
     
     # Allow WireGuard traffic
     ufw allow 2408/udp
@@ -476,8 +477,8 @@ Configure_Iptables_Rules() {
     iptables-save > /tmp/iptables_backup.rules
     
     # Allow Shadowsocks traffic
-    iptables -A INPUT -p tcp --dport ${SHADOWSOCKS_PORT} -j ACCEPT
-    iptables -A INPUT -p udp --dport ${SHADOWSOCKS_PORT} -j ACCEPT
+    iptables -A INPUT -p tcp --dport "${SHADOWSOCKS_PORT}" -j ACCEPT
+    iptables -A INPUT -p udp --dport "${SHADOWSOCKS_PORT}" -j ACCEPT
     
     # Allow WireGuard traffic
     iptables -A INPUT -p udp --dport 2408 -j ACCEPT
@@ -492,13 +493,15 @@ Configure_Iptables_Rules() {
     
     # NAT rules for WireGuard
     if [[ ${IPv4Status} = on ]]; then
-        iptables -t nat -A POSTROUTING -s 10.2.0.0/16 -o $(ip route | grep default | head -1 | awk '{print $5}') -j MASQUERADE
+        local default_interface
+        default_interface=$(ip route | grep default | head -1 | awk '{print $5}')
+        iptables -t nat -A POSTROUTING -s 10.2.0.0/16 -o "${default_interface}" -j MASQUERADE
     fi
     
     # IPv6 rules if available
     if [[ ${IPv6Status} = on ]] && command -v ip6tables >/dev/null 2>&1; then
-        ip6tables -A INPUT -p tcp --dport ${SHADOWSOCKS_PORT} -j ACCEPT
-        ip6tables -A INPUT -p udp --dport ${SHADOWSOCKS_PORT} -j ACCEPT
+        ip6tables -A INPUT -p tcp --dport "${SHADOWSOCKS_PORT}" -j ACCEPT
+        ip6tables -A INPUT -p udp --dport "${SHADOWSOCKS_PORT}" -j ACCEPT
         ip6tables -A INPUT -p udp --dport 2408 -j ACCEPT
         ip6tables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
     fi
@@ -529,24 +532,24 @@ Remove_Firewall_Rules() {
     
     case ${Firewall_Type} in
     "firewalld")
-        firewall-cmd --permanent --remove-port=${SHADOWSOCKS_PORT}/tcp
-        firewall-cmd --permanent --remove-port=${SHADOWSOCKS_PORT}/udp
+        firewall-cmd --permanent --remove-port="${SHADOWSOCKS_PORT}"/tcp
+        firewall-cmd --permanent --remove-port="${SHADOWSOCKS_PORT}"/udp
         firewall-cmd --permanent --remove-port=2408/udp
         firewall-cmd --reload
         ;;
     "ufw")
-        ufw delete allow ${SHADOWSOCKS_PORT}/tcp
-        ufw delete allow ${SHADOWSOCKS_PORT}/udp
+        ufw delete allow "${SHADOWSOCKS_PORT}"/tcp
+        ufw delete allow "${SHADOWSOCKS_PORT}"/udp
         ufw delete allow 2408/udp
         ;;
     "iptables")
-        iptables -D INPUT -p tcp --dport ${SHADOWSOCKS_PORT} -j ACCEPT 2>/dev/null
-        iptables -D INPUT -p udp --dport ${SHADOWSOCKS_PORT} -j ACCEPT 2>/dev/null
+        iptables -D INPUT -p tcp --dport "${SHADOWSOCKS_PORT}" -j ACCEPT 2>/dev/null
+        iptables -D INPUT -p udp --dport "${SHADOWSOCKS_PORT}" -j ACCEPT 2>/dev/null
         iptables -D INPUT -p udp --dport 2408 -j ACCEPT 2>/dev/null
         
         if [[ ${IPv6Status} = on ]] && command -v ip6tables >/dev/null 2>&1; then
-            ip6tables -D INPUT -p tcp --dport ${SHADOWSOCKS_PORT} -j ACCEPT 2>/dev/null
-            ip6tables -D INPUT -p udp --dport ${SHADOWSOCKS_PORT} -j ACCEPT 2>/dev/null
+            ip6tables -D INPUT -p tcp --dport "${SHADOWSOCKS_PORT}" -j ACCEPT 2>/dev/null
+            ip6tables -D INPUT -p udp --dport "${SHADOWSOCKS_PORT}" -j ACCEPT 2>/dev/null
             ip6tables -D INPUT -p udp --dport 2408 -j ACCEPT 2>/dev/null
         fi
         ;;
@@ -925,7 +928,7 @@ Test_Shadowsocks_Connection() {
     fi
     
     # Test local connection
-    if timeout 5 nc -z 127.0.0.1 ${SHADOWSOCKS_PORT}; then
+    if timeout 5 nc -z 127.0.0.1 "${SHADOWSOCKS_PORT}"; then
         log INFO "Local Shadowsocks connection test passed."
     else
         log ERROR "Local Shadowsocks connection test failed."
@@ -934,7 +937,7 @@ Test_Shadowsocks_Connection() {
     
     # Test external connection if possible
     if [[ ${IPv4_addr} ]]; then
-        if timeout 5 nc -z ${IPv4_addr} ${SHADOWSOCKS_PORT}; then
+        if timeout 5 nc -z "${IPv4_addr}" "${SHADOWSOCKS_PORT}"; then
             log INFO "External Shadowsocks connection test passed."
         else
             log WARN "External Shadowsocks connection test failed. Check firewall rules."
@@ -1107,7 +1110,7 @@ Main_Menu() {
     while true; do
         clear
         Print_Menu
-        read -p "Please select an option: " choice
+        read -r -p "Please select an option: " choice
         echo
         
         case $choice in
@@ -1147,7 +1150,7 @@ Main_Menu() {
         esac
         
         echo
-        read -p "Press Enter to continue..."
+        read -r -p "Press Enter to continue..."
     done
 }
 
